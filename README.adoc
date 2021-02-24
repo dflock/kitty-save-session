@@ -1,7 +1,7 @@
-# Kitty Save Session
+# Save & Restore Kitty Sessions
 :author: Duncan Lock
 
-Allows you to save & retore kitty sessions, with all OS kitty windows, kitty tabs & kitty windows restored.
+Allows you to save & retore kitty sessions, with all kitty OS windows, kitty tabs & kitty windows restored.
 
 Doesn't restore OS window sizes. See here for https://github.com/dflock/window-workspace-save-restore[Window Workspace Placement Save & Restore].
 

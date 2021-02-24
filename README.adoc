@@ -1,0 +1,21 @@
+# Kitty Save Session
+:author: Duncan Lock
+
+Allows you to save & retore kitty sessions, with all OS kitty windows, kitty tabs & kitty windows restored.
+
+Doesn't restore OS window sizes. See here for https://github.com/dflock/window-workspace-save-restore[Window Workspace Placement Save & Restore].
+
+## Requirements
+
+Requires python 3 and https://sw.kovidgoyal.net/kitty/[kitty].
+
+## Usage
+
+```shell
+# Dump the current kitty session:
+$ kitty @ ls > kitty-dump.json
+# Convert this JSON file into a kitty session file:
+$ cat kitty-dump.json | python3 ./kitty-convert-dump.py > kitty-session.kitty
+# Start kitty from that session file:
+$ kitty --session kitty-session.kitty
+```

@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 
 
@@ -34,6 +35,8 @@ def fg_proc_to_str(fg):
     # s += f"--cwd {fg['cwd']} {cmdline_to_str(fg['cmdline'])}"
     s += f"{cmdline_to_str(fg['cmdline'])}"
 
+    if s == "kitty @ ls":
+        return os.getenv("SHELL")
     return s
 
 

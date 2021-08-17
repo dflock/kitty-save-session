@@ -39,8 +39,12 @@ def fg_proc_to_str(fg):
 
 def convert(session):
     """Convert a kitty session dict, into a kitty session file and output it."""
+    first = True
     for os_window in session:
-        print("\nnew_os_window\n")
+        if first:
+            first = False
+        else:
+            print("\nnew_os_window\n")
 
         for tab in os_window["tabs"]:
             print(f"new_tab {tab['title']}")

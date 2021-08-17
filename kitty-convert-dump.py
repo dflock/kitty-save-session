@@ -5,17 +5,11 @@ import sys
 
 def env_to_str(env):
     """Convert an env list to a series of '--env key=value' parameters and return as a string."""
-    # FIXME: running launch with --env params doesn't seem to work - I get this error:
-    # Failed to launch child: --env
-    # With error: No such file or directory
-    # Press Enter to exit.
-    # So, skip this for now.
-    return ""
-    # s = ''
-    # for key in env:
-    #   s += f"--env {key}={env[key]} "
+    s = ""
+    for key in env:
+        s += f"--env {key}={env[key]} "
 
-    # return s.strip()
+    return s.strip()
 
 
 def cmdline_to_str(cmdline):

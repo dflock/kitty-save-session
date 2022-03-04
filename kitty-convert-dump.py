@@ -49,6 +49,7 @@ def convert(session):
             print("\nnew_os_window\n")
 
         for tab in os_window["tabs"]:
+            print("\n")
             print(f"new_tab {tab['title']}")
             # print('enabled_layouts *)
             print(f"layout {tab['layout']}")

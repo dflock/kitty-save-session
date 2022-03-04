@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+"""
+this tool is used to convert Kitty session dump to Kitty session file which can be loaded by Kitty
+"""
+
 import json
 import os
 import sys

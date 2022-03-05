@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+"""
+this tool is used to convert Kitty session dump to Kitty session file which can be loaded by Kitty
+"""
+
 import json
 import os
 import sys
@@ -44,6 +49,7 @@ def convert(session):
             print("\nnew_os_window\n")
 
         for tab in os_window["tabs"]:
+            print("\n")
             print(f"new_tab {tab['title']}")
             # print('enabled_layouts *)
             print(f"layout {tab['layout']}")

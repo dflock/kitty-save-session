@@ -1,4 +1,8 @@
 #!/bin/bash
+# Global Environment Variables:
+#  KITTY_SESSION_SOCKS_PATH - The folder to find the kitty remote control *.sock files in.
+#  KITTY_SESSION_SAVE_DIR - The folder to save the *.kitty session files in.
+
 set -o pipefail # make piped commands return exit codes like you'd expect
 
 # this must match kitty.conf's 'listen_on unix:${KITTY_SESSION_SOCKS_PATH}/{kitty_pid}.sock', 

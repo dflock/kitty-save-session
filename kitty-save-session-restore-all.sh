@@ -1,4 +1,7 @@
 #!/bin/bash
+# Global Environment Variables:
+#  KITTY_SESSION_SAVE_DIR - The folder to save the *.kitty session files in.
+
 set -o pipefail
 
 # This must match KITTY_SESSION_SAVE_DIR when kitty-save-session-all.sh was called

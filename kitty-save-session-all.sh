@@ -1,5 +1,14 @@
 #!/bin/bash
+# Global Environment Variables:
+#  KITTY_SESSION_SOCKS_PATH - The folder to find the kitty remote control *.sock files in.
+#  KITTY_SESSION_SAVE_DIR - The folder to save the *.kitty session files in.
+#  KITTY_SESSION_SAVE_OPTS - optional. If set it must be space separteed options that will be passed to the kitty-convert-dump.py script
+#                            unquoted.
+
 set -o pipefail # make piped commands return exit codes like you'd expect
+
+SCRIPT_DIR=$(dirname "$(readlink -f "${BASH_SOURCR[0]}")")
+readonly SCRIPT_DIR
 
 # TODO: Make this more atomic by creating a copy of the saved session folder to cleanup and populate, then swap out the whole folder
 
@@ -54,7 +63,7 @@ for active in "${active_session_files[@]}"; do
 
     # pipe JSON output directly to the python convertor that turns it into a consumable session file.
     set -x
-    kitty @ ls --to="unix:$active" | kitty-convert-dump.py > "$saved_session_name"
+    kitty @ ls --to="unix:$active" | "${SCRIPT_DIR}/kitty-convert-dump.py" ${KITTY_SESSION_SAVE_OPTS:-} > "$saved_session_name"
     set +x
 
     # Is the file not empty?

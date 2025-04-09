@@ -54,7 +54,7 @@ for active in "${active_session_files[@]}"; do
 
     # pipe JSON output directly to the python convertor that turns it into a consumable session file.
     set -x
-    kitty @ ls --to="unix:$active" | python3 kitty-convert-dump.py > "$saved_session_name"
+    kitty @ ls --to="unix:$active" | kitty-convert-dump.py > "$saved_session_name"
     set +x
 
     # Is the file not empty?

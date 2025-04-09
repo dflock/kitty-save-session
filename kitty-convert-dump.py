@@ -39,7 +39,7 @@ def fg_proc_to_str(fg):
     return s
 
 
-def convert(session, include_env=False):
+def convert(session, exclude_env=False):
     """Convert a kitty session dict, into a kitty session file and output it."""
     first = True
     for os_window in session:
@@ -60,13 +60,13 @@ def convert(session, include_env=False):
 
             for w in tab["windows"]:
                 print(f"title {w['title']}")
-                if include_env:
+                if exclude_env:
                     print(
-                        f"launch {env_to_str(w['env'])} {fg_proc_to_str(w['foreground_processes'])}"
+                        f"launch {fg_proc_to_str(w['foreground_processes'])}"
                     )
                 else:
                     print(
-                        f"launch {fg_proc_to_str(w['foreground_processes'])}"
+                        f"launch {env_to_str(w['env'])} {fg_proc_to_str(w['foreground_processes'])}"
                     )
                 if w["is_focused"]:
                     print("focus")
@@ -77,10 +77,10 @@ if __name__ == "__main__":
 
     # Set up argument parser
     parser = argparse.ArgumentParser(description='this tool is used to convert Kitty session dump to Kitty session file which can be loaded by Kitty')
-    parser.add_argument('--copy-env', action='store_true', help='Include environment variables in the output as well')
+    parser.add_argument('--no-copy-env', action='store_true', help='Include environment variables in the output as well')
 
     args = parser.parse_args()
 
     stdin = sys.stdin.readlines()
     session = json.loads("".join(stdin))
-    convert(session, args.copy_env)
+    convert(session, args.no_copy_env)

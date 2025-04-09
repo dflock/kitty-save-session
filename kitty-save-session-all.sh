@@ -58,7 +58,7 @@ for active in "${active_session_files[@]}"; do
     set +x
 
     # Is the file not empty?
-    if [[ ! -s "$saved_session_name" ]]; then
+    if [[ -s "$saved_session_name" ]]; then
         any_sessions_saved=true
     fi
 done

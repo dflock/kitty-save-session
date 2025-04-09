@@ -72,6 +72,12 @@ for active in "${active_session_files[@]}"; do
         any_sessions_saved=true
     else
         echo >&2 "Failed to save to file: $saved_session_name"
+        # print the output from each step so we can see what might have failed
+        set -x
+        kitty @ ls --to="unix:$active"
+        kitty @ ls --to="unix:$active" | "${SCRIPT_DIR}/kitty-convert-dump.py" ${KITTY_SESSION_SAVE_OPTS:-}
+        echo -n "" >> "$saved_session_name" || echo "failed"
+        set +x
     fi
 done
 

@@ -62,6 +62,7 @@ for active in "${active_session_files[@]}"; do
     echo -n "" > "$saved_session_name" || { echo >&2 "Cannot write to saved session file: ${saved_session_name}"; exit 1; }
 
     # pipe JSON output directly to the python convertor that turns it into a consumable session file.
+    echo "kitty @ ls --to=\"unix:$active\" | \"${SCRIPT_DIR}/kitty-convert-dump.py\" ${KITTY_SESSION_SAVE_OPTS:-} > \"$saved_session_name\""
     set -x
     kitty @ ls --to="unix:$active" | "${SCRIPT_DIR}/kitty-convert-dump.py" ${KITTY_SESSION_SAVE_OPTS:-} > "$saved_session_name"
     set +x
@@ -69,6 +70,8 @@ for active in "${active_session_files[@]}"; do
     # Is the file not empty?
     if [[ -s "$saved_session_name" ]]; then
         any_sessions_saved=true
+    else
+        echo >&2 "Failed to save to file: $saved_session_name"
     fi
 done
 

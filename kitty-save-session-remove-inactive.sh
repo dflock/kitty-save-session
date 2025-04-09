@@ -16,7 +16,7 @@ active_session_files=()
 readarray -t active_session_files < <(find "$my_active_sessions_folder" -mindepth 1 -name '*.sock')
 
 saved_session_file=()
-readarray -t saved_active_session_files < <(find "$my_saved_sessions_folder" -mindepth 1 -name '*.kitty')
+readarray -t saved_session_file < <(find "$my_saved_sessions_folder" -mindepth 1 -name '*.kitty')
 
 # this is such a common case, watch for it and skip the searching for matches
 if (( ${#active_session_files[@]} > 0 )); then

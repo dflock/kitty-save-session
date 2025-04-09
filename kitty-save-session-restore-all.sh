@@ -7,7 +7,7 @@ my_saved_sessions_folder=${KITTY_SESSION_SAVE_DIR:-${HOME}/.cache/kitty/saved-se
 mkdir -p "$my_saved_sessions_folder"
 
 saved_session_file=()
-readarray -t saved_active_session_files < <(find "$my_saved_sessions_folder" -mindepth 1 -name '*.kitty')
+readarray -t saved_session_file < <(find "$my_saved_sessions_folder" -mindepth 1 -name '*.kitty')
 
 for saved in "${saved_session_file[@]}"; do
     # --detach causes it to run in the background, but completely detached from this calling session,

@@ -22,7 +22,7 @@ readarray -t active_session_files < <(find "$my_active_sessions_folder" -mindept
 (( ${#active_session_files[@]} > 0 )) || { echo "No active sessions, skipping saving and cleanup"; exit 0; }
 
 saved_session_file=()
-readarray -t saved_active_session_files < <(find "$my_saved_sessions_folder" -mindepth 1 -name '*.kitty')
+readarray -t saved_session_file < <(find "$my_saved_sessions_folder" -mindepth 1 -name '*.kitty')
 
 # Remove files from the saved_session_file list that still have active sessions.
 for saved_idx in "${!saved_session_file[@]}"; do

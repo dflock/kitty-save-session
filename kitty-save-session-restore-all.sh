@@ -1,8 +1,8 @@
 #!/bin/bash
 set -o pipefail
 
-# This must match KITTY_SESSION_SAVED_STATE_PATH when kitty-save-session-all.sh was called
-my_saved_sessions_folder=${KITTY_SESSION_SAVED_STATE_PATH:-${HOME}/.cache/kitty/saved-sessions}
+# This must match KITTY_SESSION_SAVE_PATH when kitty-save-session-all.sh was called
+my_saved_sessions_folder=${KITTY_SESSION_SAVE_PATH:-${HOME}/.cache/kitty/saved-sessions}
 
 mkdir -p "$my_saved_sessions_folder"
 

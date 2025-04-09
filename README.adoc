@@ -36,14 +36,14 @@ You'll need to pick a folder to store the communication sockets for remote contr
 listen_on unix:${HOME}/.cache/kitty/sessions/{kitty_pid}.sock
 ```
 The `{kitty_pid}` here is a placeholder the kitty config uses that will get replaced with the pid of the kitty instance.  Optionally, if
-you ensure the variable is always set, you can make use of the `KITTY_SESSION_SOCKETS_PATH` environment variable here instead, which also allows the scripts mentioned below to match exactly:
+you ensure the variable is always set, you can make use of the `KITTY_SESSION_SOCKS_PATH` environment variable here instead, which also allows the scripts mentioned below to match exactly:
 ```
-listen_on unix:${KITTY_SESSION_SOCKETS_PATH}/{kitty_pid}.sock
+listen_on unix:${KITTY_SESSION_SOCKS_PATH}/{kitty_pid}.sock
 ```
 
 #### Tools
 
-The `kitty-save-session-all.sh`, `kitty-save-session-restore-all.sh`, and `kitty-save-session-remove-inactive.sh` scripts can now be used by either modifying the default path for `KITTY_SESSION_SOCKETS_PATH` and `KITTY_SESSION_SAVED_STATE_PATH` in them, or by ensuring those environment variables are set whenever the scripts are used (e.g. in your `.profile`).  
+The `kitty-save-session-all.sh`, `kitty-save-session-restore-all.sh`, and `kitty-save-session-remove-inactive.sh` scripts can now be used by either modifying the default path for `KITTY_SESSION_SOCKS_PATH` and `KITTY_SESSION_SAVE_PATH` in them, or by ensuring those environment variables are set whenever the scripts are used (e.g. in your `.profile`).  
 
 The `kitty-save-session-all.sh` just loops thru the list of `*.sock` socket files kitty has created for enabling remote control for the instances, queries each instance state from them, converts the output to a `*.kitty` saved session file, and cleans up any old saved session files that don't match currently running instances.  If there are no instances running however, it will not do any cleanup of saved session files.
 

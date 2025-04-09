@@ -15,22 +15,22 @@ my_saved_sessions_folder=${KITTY_SESSION_SAVE_DIR:-${HOME}/.cache/kitty/saved-se
 mkdir -p "$my_saved_sessions_folder"
 
 active_session_files=()
-readarray -t active_session_files < <(find $my_active_sessions_folder -mindepth 1 -name '*.sock')
+readarray -t active_session_files < <(find "$my_active_sessions_folder" -mindepth 1 -name '*.sock')
 
 # We don't want to clean up previous saved sessions if there aren't any active ones to save instead.
 # So there's nothing else to do here
-(( ${#active_session_files[@]} > 0 )) || exit 0
+(( ${#active_session_files[@]} > 0 )) || { echo "No active sessions, skipping saving and cleanup"; exit 0; }
 
 saved_session_file=()
-readarray -t saved_active_session_files < <(find $my_saved_sessions_folder -mindepth 1 -name '*.kitty')
+readarray -t saved_active_session_files < <(find "$my_saved_sessions_folder" -mindepth 1 -name '*.kitty')
 
 # Remove files from the saved_session_file list that still have active sessions.
 for saved_idx in "${!saved_session_file[@]}"; do
     for active in "${active_session_files[@]}"; do
         # strips the .kitty extension and path from the file name
-        saved_pid=$(basename -S .kitty ${saved_session_file[$saved_idx]})
+        saved_pid=$(basename -s .kitty "${saved_session_file[$saved_idx]}")
         # strips the .sock extension and path from the file name
-        active_pid=$(basename -S .kitty $active)
+        active_pid=$(basename -s .kitty "$active")
         if [[ "$saved_pid" == "$active_pid" ]]; then
             # remove it from our list, it matches an active pid
             unset saved_session_file[$saved_idx]
@@ -43,14 +43,38 @@ done
 # We will remove them, but wait until we've created the new sessions first so an interruption or
 # power loss won't lose all saved sessions entirely.
 
+any_sessions_saved=false
 # now iterate thru and save session states, overwriting state files if we need to
 for active in "${active_session_files[@]}"; do
     # sock file name without extension or path, add saved session path and .kitty extension
-    saved_session_name=${my_saved_sessions_folder}/$(basename -S .sock $active).kitty
+    saved_session_name=${my_saved_sessions_folder}/$(basename -s .sock "$active").kitty
+
+    # blank the file
+    echo -n "" > "$saved_session_name" || { echo >&2 "Cannot write to saved session file: ${saved_session_name}"; exit 1; }
 
     # pipe JSON output directly to the python convertor that turns it into a consumable session file.
-    kitty @ ls --to=unix:$active | python3 kitty-convert-dump.py > $saved_session_name
+    set -x
+    kitty @ ls --to="unix:$active" | python3 kitty-convert-dump.py > "$saved_session_name"
+    set +x
+
+    # Is the file not empty?
+    if [[ ! -s "$saved_session_name" ]]; then
+        any_sessions_saved=true
+    fi
 done
 
+if ! ${any_sessions_saved} &>/dev/null; then
+    echo >&2 "Failed to save any sessions to files"
+    exit 1
+fi
+
 # saved_session_file now only contains sessions that don't match active pids, so remove them
+set -x
 rm -f "${saved_session_file[@]}"
+ret=$?
+set +x
+
+if (( ret != 0 )); then
+    echo >&2 "Failed to cleanup inactive saved sessions"
+    exit 1
+fi

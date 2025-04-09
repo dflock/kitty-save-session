@@ -13,10 +13,10 @@ my_saved_sessions_folder=${KITTY_SESSION_SAVE_DIR:-${HOME}/.cache/kitty/saved-se
 mkdir -p "$my_saved_sessions_folder"
 
 active_session_files=()
-readarray -t active_session_files < <(find $my_active_sessions_folder -mindepth 1 -name '*.sock')
+readarray -t active_session_files < <(find "$my_active_sessions_folder" -mindepth 1 -name '*.sock')
 
 saved_session_file=()
-readarray -t saved_active_session_files < <(find $my_saved_sessions_folder -mindepth 1 -name '*.kitty')
+readarray -t saved_active_session_files < <(find "$my_saved_sessions_folder" -mindepth 1 -name '*.kitty')
 
 # this is such a common case, watch for it and skip the searching for matches
 if (( ${#active_session_files[@]} > 0 )); then
@@ -24,9 +24,9 @@ if (( ${#active_session_files[@]} > 0 )); then
     for saved_idx in "${!saved_session_file[@]}"; do
         for active in "${active_session_files[@]}"; do
             # strips the .kitty extension and path from the file name
-            saved_pid=$(basename -S .kitty ${saved_session_file[$saved_idx]})
+            saved_pid=$(basename -s .kitty "${saved_session_file[$saved_idx]}")
             # strips the .sock extension and path from the file name
-            active_pid=$(basename -S .kitty $active)
+            active_pid=$(basename -s .kitty "$active")
             if [[ "$saved_pid" == "$active_pid" ]]; then
                 # remove it from our list, it matches an active pid
                 unset saved_session_file[$saved_idx]
@@ -39,4 +39,9 @@ if (( ${#active_session_files[@]} > 0 )); then
 fi
 
 # saved_session_file now only contains sessions that don't match active pids, so remove them
+set -x
 rm -f "${saved_session_file[@]}"
+ret=$?
+set +x
+
+exit $ret

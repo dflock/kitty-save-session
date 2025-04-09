@@ -7,8 +7,10 @@
 
 set -o pipefail # make piped commands return exit codes like you'd expect
 
-SCRIPT_DIR=$(dirname "$(readlink -f "${BASH_SOURCR[0]}")")
+SCRIPT_DIR=$(dirname "$0")
 readonly SCRIPT_DIR
+
+[[ -f ${SCRIPT_DIR}/kitty-convert-dump.py ]] || { echo >&2 "Cannot find kitty-convert-dump.py in \$(dirname $0)=${SCRIPT_DIR}"; exit 1; }
 
 # TODO: Make this more atomic by creating a copy of the saved session folder to cleanup and populate, then swap out the whole folder
 

@@ -10,7 +10,7 @@ my_active_sessions_folder=${KITTY_SESSION_SOCKS_PATH:-${HOME}/.cache/kitty/sessi
 mkdir -p "$my_active_sessions_folder"
 
 # Folder to save your sessions in. Not recommended to be the same as my_active_sessions_folder
-my_saved_sessions_folder=${KITTY_SESSION_SAVE_PATH:-${HOME}/.cache/kitty/saved-sessions}
+my_saved_sessions_folder=${KITTY_SESSION_SAVE_DIR:-${HOME}/.cache/kitty/saved-sessions}
 
 mkdir -p "$my_saved_sessions_folder"
 

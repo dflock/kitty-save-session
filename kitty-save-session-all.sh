@@ -41,7 +41,7 @@ for saved_idx in "${!saved_session_file[@]}"; do
         # strips the .kitty extension and path from the file name
         saved_pid=$(basename -s .kitty "${saved_session_file[$saved_idx]}")
         # strips the .sock extension and path from the file name
-        active_pid=$(basename -s .kitty "$active")
+        active_pid=$(basename -s .sock "$active")
         if [[ "$saved_pid" == "$active_pid" ]]; then
             # remove it from our list, it matches an active pid
             unset saved_session_file[$saved_idx]

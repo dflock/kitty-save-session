@@ -19,3 +19,37 @@ $ cat kitty-dump.json | python3 ./kitty-convert-dump.py > kitty-session.kitty
 # Start kitty from that session file:
 $ kitty --session kitty-session.kitty
 ```
+
+**WARNING:** the `kitty @ ls` command will dump the state of the current kitty instance only!
+
+While this seems simple, it gets more complicated when you want to get the state of all kitty instances, and/or want to do it from an automated script outside the kitty instance itself.  The desktop/launcher files that ship with kitty launch a new instance every time kitty is opened.  And you need remote control access to be able to query the state of an instance from outside the instance itself (where an automated script would run).
+
+The `kitty-convert-dump.py` also takes an optional `--no-copy-env` argument. Copying the environment from the current windows can be very brittle and cause unexpected effects, especially after a reboot.  If you run into problems, you can enable this option. Even when not enabled, the environment being copied is still just the same as the kitty `--copy-env` is aware of, which is the state only at instance start.
+
+### Automated
+
+#### Setup
+
+You will first need to be sure kitty is configured to allow remote control access.  This can only be done in the `kitty.conf` by setting the `allow_remote_control_access` option, and it needs to be set to one of: `socket-only`, `socket`, or `yes`.  
+
+You will also need to configure kitty to automatically create socket files in a known location.  While this can be done with the `--listen-on` option, it really needs to be set as the `listen_on` option in the `kitty.conf` for it to be useful.  
+You'll need to pick a folder to store the communication sockets for remote control of kitty instances in, which I've set to `${HOME}/.cache/kitty/sessions/` in this example.  The folder must already exist or kitty will refuse to open with this setting.
+```
+listen_on unix:${HOME}/.cache/kitty/sessions/{kitty_pid}.sock
+```
+The `{kitty_pid}` here is a placeholder the kitty config uses that will get replaced with the pid of the kitty instance.  Optionally, if
+you ensure the variable is always set, you can make use of the `KITTY_SESSION_SOCKS_PATH` environment variable here instead, which also allows the scripts mentioned below to match exactly:
+```
+listen_on unix:${KITTY_SESSION_SOCKS_PATH}/{kitty_pid}.sock
+```
+
+#### Tools
+
+The `kitty-save-session-all.sh`, `kitty-save-session-restore-all.sh`, and `kitty-save-session-remove-inactive.sh` scripts can now be used by either modifying the default path for `KITTY_SESSION_SOCKS_PATH` and `KITTY_SESSION_SAVE_DIR` in them, or by ensuring those environment variables are set whenever the scripts are used (e.g. in your `.profile`).
+
+The `kitty-save-session-all.sh` just loops thru the list of `*.sock` socket files kitty has created for enabling remote control for the instances, queries each instance state from them, converts the output to a `*.kitty` saved session file, and cleans up any old saved session files that don't match currently running instances.  If there are no instances running however, it will not do any cleanup of saved session files.
+Additionally, this script supports an optional `KITTY_SESSION_SAVE_OPTS` variable that can be set to any space-separated list of arguments that should be passed to the python script performing the conversion to the kitty session syntax.  See the help output of it for hte available options.
+
+The `kitty-save-session-restore-all.sh` just loops thru the list of `*.kitty` saved session files, and runs a new instance of kitty for each as a detached session (runs independent of the calling shell) with a starting point matching the saved session state.
+
+The `kitty-save-session-remove-inactive.sh` script will remove any saved session files that don't match currently running instances.  This is useful for cleaning up old saved session files you no longer want to restore, even when there are no instances currently running.

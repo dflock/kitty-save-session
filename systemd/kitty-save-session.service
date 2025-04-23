@@ -1,0 +1,19 @@
+[Install]
+WantedBy=graphical-session.target
+
+[Service]
+Environment=KITTY_SESSION_SOCK_PATTERN={put your listen_on pattern here}
+Environment=KITTY_SESSION_SAVE_DIR={put the absolute path to your save directory here}
+Environment=KITTY_SESSION_SAVE_OPTS=
+ExecStart={absolute path your your script here}/kitty-save-session-all.sh
+# Optional. Uncomment this if you have setup the failure notification service as well
+#OnFailure=kitty-save-session-failure-notify.service
+StandardError=journal
+StandardOutput=journal
+SyslogIdentifier=kitty-save-session
+Type=oneshot
+
+[Unit]
+After=graphical-session.target
+Description=Save Kitty terminal sessions
+PartOf=graphical-session.target

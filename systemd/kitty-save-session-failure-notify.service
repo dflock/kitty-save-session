@@ -1,0 +1,12 @@
+# This file is optional, and only used if the OnFailure= line is uncommented in kitty-save-session.service.
+[Service]
+# Modify the tool used, message, or other details of how to notify that a failure occurred.
+ExecStart={absolute path to the tool}/noti -t 'Kitty Session Save Failed' -m 'Systemd service unit kitty-save-session.service failed. See journalctl --user -xu kitty-save-session.se>
+StandardError=journal
+StandardOutput=journal
+SyslogIdentifier=kitty-save-session-failure-notify
+Type=oneshot
+
+[Unit]
+Description=Notify on failure of kitty-save-session
+PartOf=kitty-save-session.service

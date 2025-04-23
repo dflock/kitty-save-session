@@ -1,9 +1,15 @@
 #!/bin/bash
 # Global Environment Variables:
-#  KITTY_SESSION_SOCKS_PATH - The folder to find the kitty remote control *.sock files in.
-#  KITTY_SESSION_SAVE_DIR - The folder to save the *.kitty session files in.
+#  KITTY_SESSION_SOCK_PATTERN - The pattern that includes '{kitty_pid}' that was used in the kitty 'listen_on' config directive, without the 'unix:' prefix.
+#                               If this starts with '@' it will look for datagram sockets instead of sockets in a folder, and KITTY_SESSION_SOCKS_PATH is
+#                               ignored. The '{kitty_pid}' placeholder must be part of the file name, not any directory path.
+#                               If using '@', be sure the naming is unique so it can be differented among all system listening sockets!
+#                               Default=${HOME}/.cache/kitty/sessions/{kitty_pid}.sock
+#  KITTY_SESSION_SAVE_DIR - The folder to save the *.kitty session files in. Will be deleted and replaced every time the sessions are saved.
 #  KITTY_SESSION_SAVE_OPTS - optional. If set it must be space separteed options that will be passed to the kitty-convert-dump.py script
 #                            unquoted.
+#  KITTY_SESSION_SOCKS_PATH - a deprecated option for setting a folder to find sockets named '{kitty_pid}.sock' in. Only used if KITTY_SESSION_SOCK_PATTERN
+#                             is unset. Defaults to ${HOME}/.cache/kitty/sessions
 
 set -o pipefail # make piped commands return exit codes like you'd expect
 
@@ -12,89 +18,100 @@ readonly SCRIPT_DIR
 
 [[ -f ${SCRIPT_DIR}/kitty-convert-dump.py ]] || { echo >&2 "Cannot find kitty-convert-dump.py in \$(dirname $0)=${SCRIPT_DIR}"; exit 1; }
 
-# TODO: Make this more atomic by creating a copy of the saved session folder to cleanup and populate, then swap out the whole folder
+#shellcheck disable=SC1091 # shellcheck can't follow includes
+source "${SCRIPT_DIR}/kitty-save-session-common.incl" || { echo >&2 "Cannot source common.incl in \$(dirname $0)=${SCRIPT_DIR}"; exit 1; }
 
-# this must match kitty.conf's 'listen_on unix:${KITTY_SESSION_SOCKS_PATH}/{kitty_pid}.sock', 
-# and you must also have 'allow_remote_control' set to 'on', 'socket', or 'socket-only'
-my_active_sessions_folder=${KITTY_SESSION_SOCKS_PATH:-${HOME}/.cache/kitty/sessions}
+#------------------------------------------------
 
-mkdir -p "$my_active_sessions_folder"
+# Make sure the save directory exists
+mkdir -p "$KITTY_SESSION_SAVE_DIR"
 
-# Folder to save your sessions in. Not recommended to be the same as my_active_sessions_folder
-my_saved_sessions_folder=${KITTY_SESSION_SAVE_DIR:-${HOME}/.cache/kitty/saved-sessions}
-
-mkdir -p "$my_saved_sessions_folder"
-
-active_session_files=()
-readarray -t active_session_files < <(find "$my_active_sessions_folder" -mindepth 1 -name '*.sock')
+# will be either a list of fully pathed socket files in the my_active_sessions_folder, or a list of datagram sockets (starting with '@') matching the kitty format
+active_session_sockets=()
+# gets the list of sockets in active_session_sockets array
+get_active_sockets active_session_sockets
 
 # We don't want to clean up previous saved sessions if there aren't any active ones to save instead.
 # So there's nothing else to do here
-(( ${#active_session_files[@]} > 0 )) || { echo "No active sessions, skipping saving and cleanup"; exit 0; }
+(( ${#active_session_sockets[@]} > 0 )) || quit "No active sessions, skipping saving and cleanup"
 
-saved_session_file=()
-readarray -t saved_session_file < <(find "$my_saved_sessions_folder" -mindepth 1 -name '*.kitty')
+# get the list of active pids from the socket names
+active_session_pids=()
+readarray -t active_session_pids < <(get_pids_from_socket_names "${active_session_sockets[@]}")
 
-# Remove files from the saved_session_file list that still have active sessions.
-for saved_idx in "${!saved_session_file[@]}"; do
-    for active in "${active_session_files[@]}"; do
-        # strips the .kitty extension and path from the file name
-        saved_pid=$(basename -s .kitty "${saved_session_file[$saved_idx]}")
-        # strips the .sock extension and path from the file name
-        active_pid=$(basename -s .sock "$active")
-        if [[ "$saved_pid" == "$active_pid" ]]; then
-            # remove it from our list, it matches an active pid
-            unset saved_session_file[$saved_idx]
-            # found a match, stop looking for more active sessions to match this saved session pid
-            break
-        fi
-    done
-done
-# saved_session_file is now a list of saved session files that don't match any active sessions.
-# We will remove them, but wait until we've created the new sessions first so an interruption or
-# power loss won't lose all saved sessions entirely.
+# create a temporary directory to put the new sessions in
+temp_dir=$(mktemp -d)
+
+# always cleanup the temp folder on exit.  We either moved it somewhere else on success, or it needs to be cleaned up on failure.
+trap 'rm -rf "${temp_dir}"' EXIT
+
+echo "Generating saved sessions into temporary directory: ${temp_dir}"
 
 any_sessions_saved=false
-# now iterate thru and save session states, overwriting state files if we need to
-for active in "${active_session_files[@]}"; do
-    # sock file name without extension or path, add saved session path and .kitty extension
-    saved_session_name=${my_saved_sessions_folder}/$(basename -s .sock "$active").kitty
+# Iterate thru the indexes of the active session sockets, querying the state, converting it, and writing it to a saved session file
+# named after the kitty pid it came from.
+for idx in "${!active_session_sockets[@]}"; do
+    # the indexing matches between these two arrays
+    active_socket="${active_session_sockets[$idx]}"
+    active_pid="${active_session_pids[$idx]}"
 
-    # blank the file
-    echo -n "" > "$saved_session_name" || { echo >&2 "Cannot write to saved session file: ${saved_session_name}"; exit 1; }
+    # name to write the converted session details to
+    saved_session_name="${temp_dir}/$(get_saved_session_file_name_from_pid "${active_pid}")"
+
+    # blank the file in case it already exists, and make sure we can actually write to it
+    echo -n "" > "$saved_session_name" || die "Cannot write to saved session file: ${saved_session_name}"
 
     # pipe JSON output directly to the python convertor that turns it into a consumable session file.
-    echo "kitty @ ls --to=\"unix:$active\" | \"${SCRIPT_DIR}/kitty-convert-dump.py\" ${KITTY_SESSION_SAVE_OPTS:-} > \"$saved_session_name\""
-    set -x
-    kitty @ ls --to="unix:$active" | "${SCRIPT_DIR}/kitty-convert-dump.py" ${KITTY_SESSION_SAVE_OPTS:-} > "$saved_session_name"
-    set +x
+    echo "kitty @ ls --to=\"unix:$active_socket\" | \"${SCRIPT_DIR}/kitty-convert-dump.py\" ${KITTY_SESSION_SAVE_OPTS:-} > \"$saved_session_name\""
+    #shellcheck disable=SC2086 # intentional wordsplitting on KITTY_SESSION_SAVE_OPTS
+    kitty @ ls --to="unix:$active_socket" | "${SCRIPT_DIR}/kitty-convert-dump.py" ${KITTY_SESSION_SAVE_OPTS:-} > "$saved_session_name"
 
     # Is the file not empty?
     if [[ -s "$saved_session_name" ]]; then
         any_sessions_saved=true
     else
+        # file is empty or doesn't exist, so try each step one-by-one so output will reveal which part failed, possibly in the details
+        # of what's output by one of the steps.
         echo >&2 "Failed to save to file: $saved_session_name"
+        if ! is_dgram; then
+            echo >&2 "Possibly broken socket file leftover from prior boot?: $active_socket"
+        fi
+
         # print the output from each step so we can see what might have failed
         set -x
-        kitty @ ls --to="unix:$active"
-        kitty @ ls --to="unix:$active" | "${SCRIPT_DIR}/kitty-convert-dump.py" ${KITTY_SESSION_SAVE_OPTS:-}
-        echo -n "" >> "$saved_session_name" || echo "failed"
+        # socket read error?
+        kitty @ ls --to="unix:$active_socket" >&2
+        # Parser error?
+        #shellcheck disable=SC2086 # intentional wordsplitting on KITTY_SESSION_SAVE_OPTS
+        kitty @ ls --to="unix:$active_socket" | "${SCRIPT_DIR}/kitty-convert-dump.py" ${KITTY_SESSION_SAVE_OPTS:-} >&2
+        # File write error?
+        echo -n "" >> "$saved_session_name" || echo >&2 "failed"
         set +x
+
+        # If it's a non-datagram socket (a socket file), it could be a broken socket left over from a prior boot
+        # if the socket folder is in persistent storage.  We can't tell, so just assume that's the case for non-dgram
+        # sockets.  If it's a dgram socket however, there's something wrong with the setup, it should never fail.
+        ! is_dgram || die
     fi
 done
 
+# If using socket files, any success is considered success since we may have broken socket files left over from a prior boot
+# in persistent storage.
 if ! ${any_sessions_saved} &>/dev/null; then
     echo >&2 "Failed to save any sessions to files"
     exit 1
 fi
 
-# saved_session_file now only contains sessions that don't match active pids, so remove them
-set -x
-rm -f "${saved_session_file[@]}"
+# Swap in the newly created directory for the old one as atomically as possible, then remove the old one
+echo >&2 "Swapping the new saved sessions in ${temp_dir} for the old ones in ${KITTY_SESSION_SAVE_DIR}"
+mv "${KITTY_SESSION_SAVE_DIR}" "${KITTY_SESSION_SAVE_DIR}.bak" \
+    && mv "${temp_dir}"  "${KITTY_SESSION_SAVE_DIR}" \
+    && rm -r "${KITTY_SESSION_SAVE_DIR}.bak"
 ret=$?
-set +x
 
 if (( ret != 0 )); then
-    echo >&2 "Failed to cleanup inactive saved sessions"
+    # restore the old savedd sessions if we failed when trying to swap in the new ones.
+    mv "${KITTY_SESSION_SAVE_DIR}.bak" "${KITTY_SESSION_SAVE_DIR}"
+    echo >&2 "Failed to replace old saved sessions with new ones"
     exit 1
 fi

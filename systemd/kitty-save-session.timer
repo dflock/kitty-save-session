@@ -1,0 +1,11 @@
+[Install]
+WantedBy=timers.target
+
+[Timer]
+# How long to wait the very first time the timer unit is started
+OnActiveSec=2m
+# do not set < 1 min
+OnUnitActiveSec={your frequency here, e.g. 5m }
+
+[Unit]
+Description=Timer for saving Kitty terminal sessions

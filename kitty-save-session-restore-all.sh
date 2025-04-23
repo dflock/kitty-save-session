@@ -4,13 +4,17 @@
 
 set -o pipefail
 
-# This must match KITTY_SESSION_SAVE_DIR when kitty-save-session-all.sh was called
-my_saved_sessions_folder=${KITTY_SESSION_SAVE_DIR:-${HOME}/.cache/kitty/saved-sessions}
+SCRIPT_DIR=$(dirname "$0")
+readonly SCRIPT_DIR
 
-mkdir -p "$my_saved_sessions_folder"
+#shellcheck disable=SC1091 # shellcheck can't follow includes
+source "${SCRIPT_DIR}/kitty-save-session-common.incl" || { echo >&2 "Cannot source common.incl in \$(dirname $0)=${SCRIPT_DIR}"; exit 1; }
+
+# Make sure the save directory exists, even if we don't end up doing anything because it's empty
+mkdir -p "$KITTY_SESSION_SAVE_DIR"
 
 saved_session_file=()
-readarray -t saved_session_file < <(find "$my_saved_sessions_folder" -mindepth 1 -name '*.kitty')
+readarray -t saved_session_file < <(get_saved_sessions)
 
 for saved in "${saved_session_file[@]}"; do
     # --detach causes it to run in the background, but completely detached from this calling session,

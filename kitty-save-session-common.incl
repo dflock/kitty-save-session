@@ -1,0 +1,176 @@
+# shellcheck shell=bash
+# vim: ts=4:sw=4:et:syntax=bash
+
+# This is a bash include file for the kitty-save-session-*.sh scripts that holds common functions/definitions.
+# Global Environment Variables set/used:
+#  KITTY_SESSION_SOCK_PATTERN - The pattern that includes '{kitty_pid}' that was used in the kitty 'listen_on' config directive, without the 'unix:' prefix.
+#                               If this starts with '@' it will look for datagram sockets instead of sockets in a folder, and KITTY_SESSION_SOCKS_PATH is
+#                               ignored. The '{kitty_pid}' placeholder must be part of the file name, not any directory path.
+#                               If using '@', be sure the naming is unique so it can be differented among all system listening sockets!
+#                               Default=${HOME}/.cache/kitty/sessions/{kitty_pid}.sock
+#  KITTY_SESSION_SAVE_DIR - The folder to save the *.kitty session files in. Will be deleted and replaced every time the sessions are saved.
+#  KITTY_SESSION_SOCKS_PATH - a deprecated option for setting a folder to find sockets named '{kitty_pid}.sock' in. Only used if KITTY_SESSION_SOCK_PATTERN
+#                             is unset. Defaults to ${HOME}/.cache/kitty/sessions
+
+# deprecated variable only used if KITTY_SESSION_SOCK_PATTERN is unset
+readonly KITTY_SESSION_SOCKS_PATH="${KITTY_SESSION_SOCKS_PATH:-${HOME}/.cache/kitty/sessions}"
+
+# set a default that matches prior legacy behavior, including use of the deprecated KITTY_SESSION_SOCKS_PATH variable
+if [[ -z ${KITTY_SESSION_SOCK_PATTERN} ]]; then
+    KITTY_SESSION_SOCK_PATTERN="${KITTY_SESSION_SOCKS_PATH}/{kitty_pid}.sock"
+fi
+readonly KITTY_SESSION_SOCK_PATTERN
+
+if [[ -z ${KITTY_SESSION_SAVE_DIR} ]]; then
+    # if the user didn't set a save directory, use the default one
+    KITTY_SESSION_SAVE_DIR="${HOME}/.cache/kitty/saved-sessions"
+fi
+readonly KITTY_SESSION_SAVE_DIR
+
+#------------------------------------------------
+
+quit() {
+    (( $# == 0 )) || echo "$@"
+    exit 0
+}
+export -f quit
+
+die() {
+    (( $# == 0 )) || echo >&2 "ERROR:" "$@"
+    exit 1
+}
+export -f die
+
+is_dgram() {
+    # check if the socket name starts with '@'
+    [[ ${KITTY_SESSION_SOCK_PATTERN} =~ ^@ ]]
+}
+export -f is_dgram
+
+# Create a perl-format regex that will mach the file name of the socket specified by KITTY_SESSION_SOCK_PATTERN.
+# The first match group in the regex will always be the pid portion of the socket name.
+# When KITTY_SESSION_SOCK_PATTERN starts with '@', so will the pattern. When it doesn't, only the file name portion
+# of the socket will be matched (not the path to it).
+# Args: None
+# Globals:
+#  KITTY_SESSION_SOCK_PATTERN - The pattern that includes '{kitty_pid}' as part of the name, matching the 'listen_on' config directiive from the
+#                               kitty.conf file (without the 'unix:' prefix).  If it starts with a '@' it is treated as a datagram socket. If it
+#                               doesn't, then it must be an absolute path to a folder with sockets in it.
+get_socket_pid_regex() {
+    if is_dgram; then
+        # Creates a perl regex where the first match group is the pid portion of the dgram socket name.
+        echo "${KITTY_SESSION_SOCK_PATTERN}" | sed -E -e 's|\{kitty_pid\}|\\E(\\d+)\\Q|g' -e 's|^|^\\Q|g' -e 's|$|\\E$|g'
+    else
+        # construct a regex that will match the pid portion of the socket file name in the folder.
+        # Creates a perl regex where the first  match group is the pid portion.
+        basename "${KITTY_SESSION_SOCK_PATTERN}" | sed -E -e 's|\{kitty_pid\}|\\E(\\d+)\\Q|g' -e 's|^|^\\Q|g' -e 's|$|\\E$|g'
+    fi
+}
+export -f get_socket_pid_regex
+
+# Gets the list of sockets for kitty sessions. If they're datagram sockets, they will start with '@'. If they're socket files,
+# they will be the fully pathed names. Does this by either parsing listening unix sockets from 'ss' or 'netstat', or by searching
+# the socket directory for the files matching the pattern and returning the fully pathed socket file names.
+# Args:
+#  1: Name of the global array variable to add the socket file names to.
+# Globals:
+#  KITTY_SESSION_SOCK_PATTERN - The pattern that includes '{kitty_pid}' as part of the name, matching the 'listen_on' config directiive from the
+#                               kitty.conf file (without the 'unix:' prefix).  If it starts with a '@' it is treated as a datagram socket. If it
+#                               doesn't, then it must be an absolute path to a folder with sockets in it.
+get_active_sockets() {
+    local ret_array_var
+    # bind our local variable name to the global variable passed by name
+    declare -n ret_array_var="$1"
+
+    # gives a perl-format regex that will match against either the datagram socket (with leading '@'), or the socket file name (no path)
+    local socket_regex
+    socket_regex="$(get_socket_pid_regex)"
+
+    if is_dgram; then
+        if command -v ss &>/dev/null; then
+            # use 'ss' to look for the datagram sockets
+            readarray -O ${#ret_array_var[@]} -t ret_array_var < <(ss --listening --no-header --unix | awk '{print $5}' | grep -P "${socket_regex}")
+        elif command -v netstat &>/dev/null; then
+            # netstat uses spaces as aligned-column separators, but also within the flags column values. So rely on the Path
+            # column being last and use '$NF'.
+            readarray -O ${#ret_array_var[@]} -t ret_array_var < <(netstat --listening --unix | awk '{print $NF}' | grep -P "${socket_regex}")
+        else
+            echo >&2 "Cannot find 'ss' or 'netstat' command, no available way to search listening datagram sockets"
+        fi
+    else
+        local socket_dir
+        # Folder to find your active kitty sessions in.
+        socket_dir="$(dirname "${KITTY_SESSION_SOCK_PATTERN}")"
+
+        # if the directory doesn't exist, we won't find anything in it so don't bother searching it
+        if [[ -d ${socket_dir} ]]; then
+            # find doesn't support perl regex, with -regextype, so list all the files and then us grep to filter them.
+            # Just be sure we are only printing the file names from find or the regex won't work as expected
+            readarray -O ${#ret_array_var[@]} -t ret_array_var < <(find "$socket_dir" -mindepth 1 -maxdepth 1 -printf '%P\n' | grep -P "${socket_regex}")
+            # re-attach the folder names to the front of the socket names
+            ret_array_var=("${ret_array_var[@]/#/${socket_dir}/}")
+        fi
+    fi
+}
+export -f get_active_sockets
+
+# Given a list of socket names, prints the list of pids extracted from them. The order of the output pids numbers will match 
+# the order of the socket names provided.
+# Args:
+#  1+: The list of socket names to extract the pid numbers from. Socket files may optionally include the folder path portion, though
+#      it must exactly match the path as listed in the KITTY_SESSION_SOCK_PATTERN variable. Datagrams must start with '@'.
+#      Only names that match the KITTY_SESSION_SOCK_PATTERN shoudl be passed, anythign not matching will be passed thru unchanged.
+# Globals:
+#  KITTY_SESSION_SOCK_PATTERN - The pattern that includes '{kitty_pid}' as part of the name, matching the 'listen_on' config directiive from the
+#                               kitty.conf file (without the 'unix:' prefix).  If it starts with a '@' it is treated as a datagram socket. If it
+#                               doesn't, then it must be an absolute path to a folder with sockets in it.
+get_pids_from_socket_names() {
+    local socket_pid_regex
+    socket_pid_regex=$(get_socket_pid_regex)
+
+    local args=("$@")
+    if ! is_dgram; then
+        # get the shared directory name from the socket pattern
+        local socket_dir
+        socket_dir="$(dirname "${KITTY_SESSION_SOCK_PATTERN}")"
+        # strip the socket directory from the front of the socket names since our regex doesn't match that part
+        args=("${args##"${socket_dir}/"}")
+    fi
+    # perl -pe interprets '@' symbols as an array name. There's no way to quote the body of a substitution or regex to
+    # prevent this, so we have to use "@{['@']}" to get the literal '@' symbol in the regex string perl is parsing.
+    # Using single-quotes there isn't very friendly though, so we can use the perl 'q()'' function instead.
+    # So substitute all occences of '@' in the regex with '@{[q(@)]}' to get a literal '@' symbol in the regex.
+    socket_pid_regex="${socket_pid_regex/@/@{[q(@)]\}}"
+
+    # Print what was passed, one per line, and feed it to the perl command.
+    # Use a perl substitution to extract the first match group from the socket name
+    printf '%s\n' "$@" | perl -pe "s|${socket_pid_regex}|\$1|g"
+}
+export -f get_pids_from_socket_names
+
+# Gets the list of fully-pathed saved session files in the KITTY_SESSION_SAVE_DIR directory.
+# The files are named after the kitty pid they were saved from.
+# Args: None
+# Globals:
+#  KITTY_SESSION_SAVE_DIR - The folder the *.kitty session files are saved into
+get_saved_sessions() {
+    find "$KITTY_SESSION_SAVE_DIR" -mindepth 1 -maxdepth 1 -name '*.kitty'
+}
+export -f get_saved_sessions
+
+# Gets the unpathed name of the saved session file from the pid of the kitty session it saves.
+# Args:
+#  1: The pid of the kitty session
+get_saved_session_file_name_from_pid() {
+    echo -n "${1}.kitty"
+}
+export -f get_saved_session_file_name_from_pid
+
+# Gets the pid a saved session file was saved for from the file name
+# of the saved session file.
+# Args:
+#  1: The name of the saved session file. May be fully pathed, or not.
+get_pid_from_saved_session() {
+    basename -s .kitty "$1"
+}
+export -f get_pid_from_saved_session
